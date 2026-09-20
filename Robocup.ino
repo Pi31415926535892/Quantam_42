@@ -10,8 +10,8 @@ uint16_t sensorValues[SensorCount];
 // ============================================================
 
 const uint8_t sensorPins[SensorCount] = {
-  PA_0, PA_1, PA_2, PA_3,
-  PA_4, PA_5, PA_6, PA_7
+  A0, A2, A4, A6,
+  A8, A10, A12, A14
 };
 
 // ============================================================
@@ -19,14 +19,14 @@ const uint8_t sensorPins[SensorCount] = {
 // ============================================================
 
 // Left motor
-const uint8_t LEFT_IN1 = PB_10;
-const uint8_t LEFT_IN2 = PB_9;
-const uint8_t LEFT_PWM = PB_4;
+const uint8_t LEFT_IN1 = 3;
+const uint8_t LEFT_IN2 = 5;
+const uint8_t LEFT_PWM = 7;
 
 // Right motor
-const uint8_t RIGHT_IN1 = PB_12;
-const uint8_t RIGHT_IN2 = PB_13;
-const uint8_t RIGHT_PWM = PB_8;
+const uint8_t RIGHT_IN1 = 2;
+const uint8_t RIGHT_IN2 = 4;
+const uint8_t RIGHT_PWM = 6;
 
 // ============================================================
 // LINE POSITION
@@ -42,10 +42,9 @@ uint8_t historyIndex = 0;
 // PID CONTROLLER
 // ============================================================
 
-float Kp = 0.27;
+float Kp = -0.25;
 float Ki = 0.00;
-float Kd = 1.73;
-
+float Kd = 0;
 int baseSpeed = 192;
 
 float integral = 0;
@@ -156,8 +155,8 @@ void setup()
 
 void setMotor(int leftSpeed, int rightSpeed)
 {
-  leftSpeed  = constrain(leftSpeed, -255, 255);
-  rightSpeed = constrain(rightSpeed, -255, 255);
+  leftSpeed  = constrain(leftSpeed, 0, 255);
+  rightSpeed = constrain(rightSpeed, 0, 255);
 
   // ----------------------------------------------------------
   // LEFT MOTOR
