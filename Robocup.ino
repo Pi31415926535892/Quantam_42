@@ -38,7 +38,7 @@ const int POSITION_CENTER = 3500;
 // PID
 // ============================================================
 
-float Kp = -0.08;
+float Kp = -0.16;
 float Ki = 0.00;
 float Kd = 0.00;
 
