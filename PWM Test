@@ -1,0 +1,162 @@
+// ============================================================
+// L298N MOTOR SERIAL TEST
+// Type: leftSpeed,rightSpeed
+// Range: -255 to 255
+// Example: 150,150
+// ============================================================
+
+// ============================================================
+// L298N PINS
+// ============================================================
+
+const uint8_t LEFT_IN1  = 3;
+const uint8_t LEFT_IN2  = 5;
+const uint8_t LEFT_PWM  = 7;
+
+const uint8_t RIGHT_IN1 = 2;
+const uint8_t RIGHT_IN2 = 4;
+const uint8_t RIGHT_PWM = 6;
+
+// ============================================================
+// MOTOR CONTROL
+// ============================================================
+
+void setMotor(int leftSpeed, int rightSpeed)
+{
+  // ----------------------------------------------------------
+  // LEFT MOTOR
+  // ----------------------------------------------------------
+
+  leftSpeed = constrain(leftSpeed, -255, 255);
+
+  if (leftSpeed > 0)
+  {
+    digitalWrite(LEFT_IN1, HIGH);
+    digitalWrite(LEFT_IN2, LOW);
+    analogWrite(LEFT_PWM, leftSpeed);
+  }
+  else if (leftSpeed < 0)
+  {
+    digitalWrite(LEFT_IN1, LOW);
+    digitalWrite(LEFT_IN2, HIGH);
+    analogWrite(LEFT_PWM, -leftSpeed);
+  }
+  else
+  {
+    digitalWrite(LEFT_IN1, LOW);
+    digitalWrite(LEFT_IN2, LOW);
+    analogWrite(LEFT_PWM, 0);
+  }
+
+  // ----------------------------------------------------------
+  // RIGHT MOTOR
+  // ----------------------------------------------------------
+
+  rightSpeed = constrain(rightSpeed, -255, 255);
+
+  if (rightSpeed > 0)
+  {
+    digitalWrite(RIGHT_IN1, HIGH);
+    digitalWrite(RIGHT_IN2, LOW);
+    analogWrite(RIGHT_PWM, rightSpeed);
+  }
+  else if (rightSpeed < 0)
+  {
+    digitalWrite(RIGHT_IN1, LOW);
+    digitalWrite(RIGHT_IN2, HIGH);
+    analogWrite(RIGHT_PWM, -rightSpeed);
+  }
+  else
+  {
+    digitalWrite(RIGHT_IN1, LOW);
+    digitalWrite(RIGHT_IN2, LOW);
+    analogWrite(RIGHT_PWM, 0);
+  }
+}
+
+// ============================================================
+// SETUP
+// ============================================================
+
+void setup()
+{
+  Serial.begin(115200);
+
+  pinMode(LEFT_IN1, OUTPUT);
+  pinMode(LEFT_IN2, OUTPUT);
+  pinMode(LEFT_PWM, OUTPUT);
+
+  pinMode(RIGHT_IN1, OUTPUT);
+  pinMode(RIGHT_IN2, OUTPUT);
+  pinMode(RIGHT_PWM, OUTPUT);
+
+  // Start stopped
+  setMotor(0, 0);
+
+  Serial.println();
+  Serial.println("=================================");
+  Serial.println("       L298N MOTOR TEST");
+  Serial.println("=================================");
+  Serial.println();
+  Serial.println("Enter:");
+  Serial.println("  leftSpeed,rightSpeed");
+  Serial.println();
+  Serial.println("Range: -255 to 255");
+  Serial.println("Positive = forward");
+  Serial.println("Negative = reverse");
+  Serial.println("0 = stop");
+  Serial.println();
+  Serial.println("Examples:");
+  Serial.println("  150,150");
+  Serial.println("  200,100");
+  Serial.println("  -150,150");
+  Serial.println("  0,0");
+  Serial.println();
+}
+
+// ============================================================
+// LOOP
+// ============================================================
+
+void loop()
+{
+  if (Serial.available())
+  {
+    String input = Serial.readStringUntil('\n');
+
+    input.trim();
+
+    // Find comma
+    int commaIndex = input.indexOf(',');
+
+    if (commaIndex == -1)
+    {
+      Serial.println("ERROR: Use leftSpeed,rightSpeed");
+      return;
+    }
+
+    // Extract the two speeds
+    String leftString  = input.substring(0, commaIndex);
+    String rightString = input.substring(commaIndex + 1);
+
+    leftString.trim();
+    rightString.trim();
+
+    int leftSpeed  = leftString.toInt();
+    int rightSpeed = rightString.toInt();
+
+    // Constrain to valid range
+    leftSpeed  = constrain(leftSpeed, -255, 255);
+    rightSpeed = constrain(rightSpeed, -255, 255);
+
+    // Set motors
+    setMotor(leftSpeed, rightSpeed);
+
+    // Print result
+    Serial.print("LEFT = ");
+    Serial.print(leftSpeed);
+
+    Serial.print("    RIGHT = ");
+    Serial.println(rightSpeed);
+  }
+}
