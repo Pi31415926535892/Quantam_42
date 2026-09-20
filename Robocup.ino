@@ -38,8 +38,7 @@ const int POSITION_CENTER = 3500;
 // PID
 // ============================================================
 
-// Start with P only
-float Kp = 0.12;
+float Kp = -0.08;
 float Ki = 0.00;
 float Kd = 0.00;
 
@@ -50,6 +49,12 @@ float previousError = 0;
 
 const float INTEGRAL_LIMIT = 3000;
 
+// Maximum steering correction
+const int MAX_CORRECTION = 120;
+
+// Minimum motor speed
+const int MIN_SPEED = 30;
+
 // ============================================================
 // MOTOR CONTROL
 // ============================================================
@@ -57,7 +62,7 @@ const float INTEGRAL_LIMIT = 3000;
 void setMotor(int leftSpeed, int rightSpeed)
 {
   // ----------------------------------------------------------
-  // FORCE BOTH MOTORS TO FORWARD
+  // BOTH MOTORS ARE ALWAYS FORWARD
   // ----------------------------------------------------------
 
   digitalWrite(LEFT_IN1, HIGH);
@@ -67,11 +72,11 @@ void setMotor(int leftSpeed, int rightSpeed)
   digitalWrite(RIGHT_IN2, LOW);
 
   // ----------------------------------------------------------
-  // NEVER ALLOW REVERSE
+  // ABSOLUTELY NO REVERSE
   // ----------------------------------------------------------
 
-  leftSpeed = constrain(leftSpeed, 0, 255);
-  rightSpeed = constrain(rightSpeed, 0, 255);
+  leftSpeed = constrain(leftSpeed, MIN_SPEED, 255);
+  rightSpeed = constrain(rightSpeed, MIN_SPEED, 255);
 
   analogWrite(LEFT_PWM, leftSpeed);
   analogWrite(RIGHT_PWM, rightSpeed);
@@ -97,67 +102,75 @@ void setup()
   pinMode(RIGHT_IN2, OUTPUT);
   pinMode(RIGHT_PWM, OUTPUT);
 
-  // Motors OFF
+  // Motors OFF during startup
   analogWrite(LEFT_PWM, 0);
   analogWrite(RIGHT_PWM, 0);
 
   // ----------------------------------------------------------
-  // QTR
+  // QTR-8A SETUP
   // ----------------------------------------------------------
 
   qtr.setTypeAnalog();
   qtr.setSensorPins(sensorPins, SensorCount);
 
-  Serial.println("================================");
-  Serial.println("QTR LINE FOLLOWER");
-  Serial.println("================================");
+  Serial.println();
+  Serial.println("====================================");
+  Serial.println("      QTR-8A LINE FOLLOWER");
+  Serial.println("====================================");
 
-  Serial.println("Move sensor across WHITE and BLACK.");
-  Serial.println("Calibration starts in 2 seconds.");
+  Serial.println();
+  Serial.println("Move the QTR sensor across");
+  Serial.println("both WHITE and BLACK.");
+  Serial.println();
+
+  Serial.println("Calibration starts in 2 seconds...");
 
   delay(2000);
 
   // ----------------------------------------------------------
-  // CALIBRATION
+  // 10 SECOND CALIBRATION
   // ----------------------------------------------------------
 
-  unsigned long startTime = millis();
+  unsigned long calibrationStart = millis();
 
-  while (millis() - startTime < 10000)
+  while (millis() - calibrationStart < 10000)
   {
     qtr.calibrate();
     delay(20);
   }
 
+  Serial.println();
   Serial.println("Calibration complete!");
+
   Serial.println("Starting in 2 seconds...");
 
   delay(2000);
 
   Serial.println("GO!");
+  Serial.println();
 }
 
 // ============================================================
-// LOOP
+// MAIN LOOP
 // ============================================================
 
 void loop()
 {
-  // ----------------------------------------------------------
+  // ==========================================================
   // READ QTR
-  // ----------------------------------------------------------
+  // ==========================================================
 
   uint16_t position = qtr.readLineBlack(sensorValues);
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // ERROR
-  // ----------------------------------------------------------
+  // ==========================================================
 
   float error = (float)position - POSITION_CENTER;
 
-  // ----------------------------------------------------------
-  // PID
-  // ----------------------------------------------------------
+  // ==========================================================
+  // INTEGRAL
+  // ==========================================================
 
   integral += error;
 
@@ -167,31 +180,63 @@ void loop()
     INTEGRAL_LIMIT
   );
 
+  // ==========================================================
+  // DERIVATIVE
+  // ==========================================================
+
   float derivative = error - previousError;
 
-  float correction =
-      Kp * error +
-      Ki * integral +
-      Kd * derivative;
+  // ==========================================================
+  // PID
+  // ==========================================================
+
+  float P = Kp * error;
+  float I = Ki * integral;
+  float D = Kd * derivative;
+
+  int correction = (int)(P + I + D);
+
+  // Limit steering correction
+  correction = constrain(
+    correction,
+    -MAX_CORRECTION,
+    MAX_CORRECTION
+  );
 
   previousError = error;
 
-  // ----------------------------------------------------------
-  // MOTOR SPEED
-  // ----------------------------------------------------------
+  // ==========================================================
+  // MOTOR SPEEDS
+  // ==========================================================
 
-  int leftSpeed  = baseSpeed + correction;
+  int leftSpeed = baseSpeed + correction;
   int rightSpeed = baseSpeed - correction;
 
-  // ABSOLUTELY NO REVERSE
-  leftSpeed = constrain(leftSpeed, 0, 255);
-  rightSpeed = constrain(rightSpeed, 0, 255);
+  // ==========================================================
+  // FORWARD ONLY
+  // ==========================================================
+
+  leftSpeed = constrain(
+    leftSpeed,
+    MIN_SPEED,
+    255
+  );
+
+  rightSpeed = constrain(
+    rightSpeed,
+    MIN_SPEED,
+    255
+  );
+
+  // ==========================================================
+  // DRIVE
+  // ==========================================================
 
   setMotor(leftSpeed, rightSpeed);
 
-  // ----------------------------------------------------------
-  // DEBUG
-  // ----------------------------------------------------------
+  // ==========================================================
+  // SERIAL DEBUG
+  // ==========================================================
 
   static unsigned long lastPrint = 0;
 
@@ -199,7 +244,7 @@ void loop()
   {
     lastPrint = millis();
 
-    Serial.print("Sensors: ");
+    Serial.print("SENSORS: ");
 
     for (uint8_t i = 0; i < SensorCount; i++)
     {
@@ -209,7 +254,9 @@ void loop()
         Serial.print(",");
     }
 
-    Serial.print(" | POS: ");
+    Serial.println();
+
+    Serial.print("POSITION: ");
     Serial.print(position);
 
     Serial.print(" | ERROR: ");
@@ -218,10 +265,12 @@ void loop()
     Serial.print(" | CORRECTION: ");
     Serial.print(correction);
 
-    Serial.print(" | L: ");
+    Serial.print(" | LEFT: ");
     Serial.print(leftSpeed);
 
-    Serial.print(" | R: ");
+    Serial.print(" | RIGHT: ");
     Serial.println(rightSpeed);
+
+    Serial.println();
   }
 }
