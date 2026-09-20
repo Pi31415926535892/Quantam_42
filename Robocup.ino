@@ -34,7 +34,10 @@ const uint8_t RIGHT_PWM = 6;
 
 const int POSITION_CENTER = 3500;
 
-const uint8_t TRAIL_SIZE = 5;
+// Start with NO averaging.
+// Once everything works, you can increase this to 3 or 5.
+const uint8_t TRAIL_SIZE = 1;
+
 uint16_t positionHistory[TRAIL_SIZE];
 uint8_t historyIndex = 0;
 
@@ -42,27 +45,22 @@ uint8_t historyIndex = 0;
 // PID CONTROLLER
 // ============================================================
 
-float Kp = -0.25;
+// Start with P only.
+// If the robot turns the WRONG direction, change Kp to -0.15.
+float Kp = -0.15;
 float Ki = 0.00;
-float Kd = 0;
-int baseSpeed = 192;
+float Kd = 0.00;
+
+int baseSpeed = 150;
 
 float integral = 0;
+float previousError = 0;
 
 const float INTEGRAL_LIMIT = 5000;
-
-float previousError = 0;
 
 // ============================================================
 // ASCII SENSOR DISPLAY
 // ============================================================
-
-// Converts a QTR reading into:
-// " "  = very low
-// "░"  = low
-// "▒"  = medium-low
-// "▓"  = medium-high
-// "█"  = high
 
 char sensorToASCII(uint16_t value)
 {
@@ -102,6 +100,7 @@ void setup()
   pinMode(RIGHT_IN2, OUTPUT);
   pinMode(RIGHT_PWM, OUTPUT);
 
+  // Stop motors
   analogWrite(LEFT_PWM, 0);
   analogWrite(RIGHT_PWM, 0);
 
@@ -112,12 +111,15 @@ void setup()
   qtr.setTypeAnalog();
   qtr.setSensorPins(sensorPins, SensorCount);
 
-  Serial.println("QTR-8A CALIBRATION");
-  Serial.println("Move the sensor across WHITE and BLACK!");
+  Serial.println();
+  Serial.println("================================");
+  Serial.println("QTR-8A LINE FOLLOWER");
+  Serial.println("================================");
+
+  Serial.println("Move the sensor across WHITE and BLACK.");
   Serial.println("Calibration starts in 2 seconds...");
 
   delay(2000);
-  
 
   // ----------------------------------------------------------
   // 10 second calibration
@@ -132,7 +134,7 @@ void setup()
   }
 
   // ----------------------------------------------------------
-  // Initialize trailing average
+  // Initialize position history
   // ----------------------------------------------------------
 
   for (uint8_t i = 0; i < TRAIL_SIZE; i++)
@@ -155,9 +157,6 @@ void setup()
 
 void setMotor(int leftSpeed, int rightSpeed)
 {
-  leftSpeed  = constrain(leftSpeed, 0, 255);
-  rightSpeed = constrain(rightSpeed, 0, 255);
-
   // ----------------------------------------------------------
   // LEFT MOTOR
   // ----------------------------------------------------------
@@ -192,6 +191,13 @@ void setMotor(int leftSpeed, int rightSpeed)
     rightSpeed = -rightSpeed;
   }
 
+  // ----------------------------------------------------------
+  // Limit PWM AFTER checking direction
+  // ----------------------------------------------------------
+
+  leftSpeed = constrain(leftSpeed, 0, 255);
+  rightSpeed = constrain(rightSpeed, 0, 255);
+
   analogWrite(LEFT_PWM, leftSpeed);
   analogWrite(RIGHT_PWM, rightSpeed);
 }
@@ -203,47 +209,10 @@ void setMotor(int leftSpeed, int rightSpeed)
 void loop()
 {
   // ==========================================================
-  // READ QTR SENSORS
-  // ==========================================================
-
-  // The QTR library fills sensorValues[].
-  // No analogRead() is needed.
-
-  qtr.readCalibrated(sensorValues);
-
-  // ==========================================================
-  // NUMERICAL SENSOR VALUES
-  // ==========================================================
-
-  Serial.print("NUM: ");
-
-  for (uint8_t i = 0; i < SensorCount; i++)
-  {
-    Serial.print(sensorValues[i]);
-
-    if (i < SensorCount - 1)
-      Serial.print(",");
-  }
-
-  Serial.println();
-
-  // ==========================================================
-  // ASCII SENSOR DISPLAY
-  // ==========================================================
-
-  Serial.print("ASCII: ");
-
-  for (uint8_t i = 0; i < SensorCount; i++)
-  {
-    Serial.print(sensorToASCII(sensorValues[i]));
-  }
-
-  Serial.println();
-
-  // ==========================================================
   // READ LINE POSITION
   // ==========================================================
 
+  // readLineBlack() also fills sensorValues[]
   uint16_t position = qtr.readLineBlack(sensorValues);
 
   // ==========================================================
@@ -290,7 +259,7 @@ void loop()
   float I = Ki * integral;
   float D = Kd * derivative;
 
-  int correction = P + I + D;
+  int correction = (int)(P + I + D);
 
   previousError = error;
 
@@ -304,35 +273,55 @@ void loop()
   setMotor(leftSpeed, rightSpeed);
 
   // ==========================================================
-  // POSITION / PID DEBUG
+  // SERIAL DEBUG
   // ==========================================================
 
-  Serial.print("POS: ");
-  Serial.print(position);
+  static unsigned long lastPrint = 0;
 
-  Serial.print("  AVG: ");
-  Serial.print(averagedPosition);
+  // Only print every 100 ms so Serial doesn't slow the robot
+  if (millis() - lastPrint >= 100)
+  {
+    lastPrint = millis();
 
-  Serial.print("  ERR: ");
-  Serial.print(error);
+    Serial.print("SENSORS: ");
 
-  Serial.print("  P: ");
-  Serial.print(P);
+    for (uint8_t i = 0; i < SensorCount; i++)
+    {
+      Serial.print(sensorValues[i]);
 
-  Serial.print("  I: ");
-  Serial.print(I);
+      if (i < SensorCount - 1)
+        Serial.print(",");
+    }
 
-  Serial.print("  D: ");
-  Serial.print(D);
+    Serial.println();
 
-  Serial.print("  L: ");
-  Serial.print(leftSpeed);
+    Serial.print("ASCII: ");
 
-  Serial.print("  R: ");
-  Serial.print(rightSpeed);
-  Serial.print("    ");
+    for (uint8_t i = 0; i < SensorCount; i++)
+    {
+      Serial.print(sensorToASCII(sensorValues[i]));
+    }
 
-  Serial.println();
+    Serial.println();
 
-  delay(10);
+    Serial.print("POS: ");
+    Serial.print(position);
+
+    Serial.print("  AVG: ");
+    Serial.print(averagedPosition);
+
+    Serial.print("  ERR: ");
+    Serial.print(error);
+
+    Serial.print("  P: ");
+    Serial.print(P);
+
+    Serial.print("  L: ");
+    Serial.print(leftSpeed);
+
+    Serial.print("  R: ");
+    Serial.print(rightSpeed);
+
+    Serial.println();
+  }
 }
