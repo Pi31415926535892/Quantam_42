@@ -18,12 +18,12 @@ const uint8_t sensorPins[SensorCount] = {
 // L298N
 // ============================================================
 
-// Left motor
+// LEFT MOTOR
 const uint8_t LEFT_IN1 = 3;
 const uint8_t LEFT_IN2 = 5;
 const uint8_t LEFT_PWM = 7;
 
-// Right motor
+// RIGHT MOTOR
 const uint8_t RIGHT_IN1 = 2;
 const uint8_t RIGHT_IN2 = 4;
 const uint8_t RIGHT_PWM = 6;
@@ -34,20 +34,12 @@ const uint8_t RIGHT_PWM = 6;
 
 const int POSITION_CENTER = 3500;
 
-// Start with NO averaging.
-// Once everything works, you can increase this to 3 or 5.
-const uint8_t TRAIL_SIZE = 1;
-
-uint16_t positionHistory[TRAIL_SIZE];
-uint8_t historyIndex = 0;
-
 // ============================================================
-// PID CONTROLLER
+// PID
 // ============================================================
 
-// Start with P only.
-// If the robot turns the WRONG direction, change Kp to -0.15.
-float Kp = -0.15;
+// Start with P only
+float Kp = 0.12;
 float Ki = 0.00;
 float Kd = 0.00;
 
@@ -56,28 +48,33 @@ int baseSpeed = 150;
 float integral = 0;
 float previousError = 0;
 
-const float INTEGRAL_LIMIT = 5000;
+const float INTEGRAL_LIMIT = 3000;
 
 // ============================================================
-// ASCII SENSOR DISPLAY
+// MOTOR CONTROL
 // ============================================================
 
-char sensorToASCII(uint16_t value)
+void setMotor(int leftSpeed, int rightSpeed)
 {
-  if (value < 200)
-    return ' ';
+  // ----------------------------------------------------------
+  // FORCE BOTH MOTORS TO FORWARD
+  // ----------------------------------------------------------
 
-  else if (value < 400)
-    return '.';
+  digitalWrite(LEFT_IN1, HIGH);
+  digitalWrite(LEFT_IN2, LOW);
 
-  else if (value < 600)
-    return '+';
+  digitalWrite(RIGHT_IN1, HIGH);
+  digitalWrite(RIGHT_IN2, LOW);
 
-  else if (value < 800)
-    return '#';
+  // ----------------------------------------------------------
+  // NEVER ALLOW REVERSE
+  // ----------------------------------------------------------
 
-  else
-    return '@';
+  leftSpeed = constrain(leftSpeed, 0, 255);
+  rightSpeed = constrain(rightSpeed, 0, 255);
+
+  analogWrite(LEFT_PWM, leftSpeed);
+  analogWrite(RIGHT_PWM, rightSpeed);
 }
 
 // ============================================================
@@ -89,7 +86,7 @@ void setup()
   Serial.begin(115200);
 
   // ----------------------------------------------------------
-  // Motor pins
+  // MOTOR PINS
   // ----------------------------------------------------------
 
   pinMode(LEFT_IN1, OUTPUT);
@@ -100,29 +97,28 @@ void setup()
   pinMode(RIGHT_IN2, OUTPUT);
   pinMode(RIGHT_PWM, OUTPUT);
 
-  // Stop motors
+  // Motors OFF
   analogWrite(LEFT_PWM, 0);
   analogWrite(RIGHT_PWM, 0);
 
   // ----------------------------------------------------------
-  // QTR setup
+  // QTR
   // ----------------------------------------------------------
 
   qtr.setTypeAnalog();
   qtr.setSensorPins(sensorPins, SensorCount);
 
-  Serial.println();
   Serial.println("================================");
-  Serial.println("QTR-8A LINE FOLLOWER");
+  Serial.println("QTR LINE FOLLOWER");
   Serial.println("================================");
 
-  Serial.println("Move the sensor across WHITE and BLACK.");
-  Serial.println("Calibration starts in 2 seconds...");
+  Serial.println("Move sensor across WHITE and BLACK.");
+  Serial.println("Calibration starts in 2 seconds.");
 
   delay(2000);
 
   // ----------------------------------------------------------
-  // 10 second calibration
+  // CALIBRATION
   // ----------------------------------------------------------
 
   unsigned long startTime = millis();
@@ -133,16 +129,6 @@ void setup()
     delay(20);
   }
 
-  // ----------------------------------------------------------
-  // Initialize position history
-  // ----------------------------------------------------------
-
-  for (uint8_t i = 0; i < TRAIL_SIZE; i++)
-  {
-    positionHistory[i] = POSITION_CENTER;
-  }
-
-  Serial.println();
   Serial.println("Calibration complete!");
   Serial.println("Starting in 2 seconds...");
 
@@ -152,98 +138,26 @@ void setup()
 }
 
 // ============================================================
-// MOTOR CONTROL
-// ============================================================
-
-void setMotor(int leftSpeed, int rightSpeed)
-{
-  // ----------------------------------------------------------
-  // LEFT MOTOR
-  // ----------------------------------------------------------
-
-  if (leftSpeed >= 0)
-  {
-    digitalWrite(LEFT_IN1, HIGH);
-    digitalWrite(LEFT_IN2, LOW);
-  }
-  else
-  {
-    digitalWrite(LEFT_IN1, LOW);
-    digitalWrite(LEFT_IN2, HIGH);
-
-    leftSpeed = -leftSpeed;
-  }
-
-  // ----------------------------------------------------------
-  // RIGHT MOTOR
-  // ----------------------------------------------------------
-
-  if (rightSpeed >= 0)
-  {
-    digitalWrite(RIGHT_IN1, HIGH);
-    digitalWrite(RIGHT_IN2, LOW);
-  }
-  else
-  {
-    digitalWrite(RIGHT_IN1, LOW);
-    digitalWrite(RIGHT_IN2, HIGH);
-
-    rightSpeed = -rightSpeed;
-  }
-
-  // ----------------------------------------------------------
-  // Limit PWM AFTER checking direction
-  // ----------------------------------------------------------
-
-  leftSpeed = constrain(leftSpeed, 0, 255);
-  rightSpeed = constrain(rightSpeed, 0, 255);
-
-  analogWrite(LEFT_PWM, leftSpeed);
-  analogWrite(RIGHT_PWM, rightSpeed);
-}
-
-// ============================================================
 // LOOP
 // ============================================================
 
 void loop()
 {
-  // ==========================================================
-  // READ LINE POSITION
-  // ==========================================================
+  // ----------------------------------------------------------
+  // READ QTR
+  // ----------------------------------------------------------
 
-  // readLineBlack() also fills sensorValues[]
   uint16_t position = qtr.readLineBlack(sensorValues);
 
-  // ==========================================================
-  // TRAILING AVERAGE
-  // ==========================================================
-
-  positionHistory[historyIndex] = position;
-
-  historyIndex++;
-
-  if (historyIndex >= TRAIL_SIZE)
-    historyIndex = 0;
-
-  uint32_t total = 0;
-
-  for (uint8_t i = 0; i < TRAIL_SIZE; i++)
-  {
-    total += positionHistory[i];
-  }
-
-  uint16_t averagedPosition = total / TRAIL_SIZE;
-
-  // ==========================================================
+  // ----------------------------------------------------------
   // ERROR
-  // ==========================================================
+  // ----------------------------------------------------------
 
-  float error = (float)averagedPosition - POSITION_CENTER;
+  float error = (float)position - POSITION_CENTER;
 
-  // ==========================================================
+  // ----------------------------------------------------------
   // PID
-  // ==========================================================
+  // ----------------------------------------------------------
 
   integral += error;
 
@@ -255,35 +169,37 @@ void loop()
 
   float derivative = error - previousError;
 
-  float P = Kp * error;
-  float I = Ki * integral;
-  float D = Kd * derivative;
-
-  int correction = (int)(P + I + D);
+  float correction =
+      Kp * error +
+      Ki * integral +
+      Kd * derivative;
 
   previousError = error;
 
-  // ==========================================================
-  // MOTOR SPEEDS
-  // ==========================================================
+  // ----------------------------------------------------------
+  // MOTOR SPEED
+  // ----------------------------------------------------------
 
   int leftSpeed  = baseSpeed + correction;
   int rightSpeed = baseSpeed - correction;
 
+  // ABSOLUTELY NO REVERSE
+  leftSpeed = constrain(leftSpeed, 0, 255);
+  rightSpeed = constrain(rightSpeed, 0, 255);
+
   setMotor(leftSpeed, rightSpeed);
 
-  // ==========================================================
-  // SERIAL DEBUG
-  // ==========================================================
+  // ----------------------------------------------------------
+  // DEBUG
+  // ----------------------------------------------------------
 
   static unsigned long lastPrint = 0;
 
-  // Only print every 100 ms so Serial doesn't slow the robot
   if (millis() - lastPrint >= 100)
   {
     lastPrint = millis();
 
-    Serial.print("SENSORS: ");
+    Serial.print("Sensors: ");
 
     for (uint8_t i = 0; i < SensorCount; i++)
     {
@@ -293,35 +209,19 @@ void loop()
         Serial.print(",");
     }
 
-    Serial.println();
-
-    Serial.print("ASCII: ");
-
-    for (uint8_t i = 0; i < SensorCount; i++)
-    {
-      Serial.print(sensorToASCII(sensorValues[i]));
-    }
-
-    Serial.println();
-
-    Serial.print("POS: ");
+    Serial.print(" | POS: ");
     Serial.print(position);
 
-    Serial.print("  AVG: ");
-    Serial.print(averagedPosition);
-
-    Serial.print("  ERR: ");
+    Serial.print(" | ERROR: ");
     Serial.print(error);
 
-    Serial.print("  P: ");
-    Serial.print(P);
+    Serial.print(" | CORRECTION: ");
+    Serial.print(correction);
 
-    Serial.print("  L: ");
+    Serial.print(" | L: ");
     Serial.print(leftSpeed);
 
-    Serial.print("  R: ");
-    Serial.print(rightSpeed);
-
-    Serial.println();
+    Serial.print(" | R: ");
+    Serial.println(rightSpeed);
   }
 }
