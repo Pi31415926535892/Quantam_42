@@ -46,7 +46,7 @@ const int MAX_CORRECTION = 65;
 // PID
 // ============================================================
 
-float Kp = -0.5;
+float Kp = -1;
 float Ki = 0.0;
 float Kd = -0.015;
 
