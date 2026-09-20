@@ -36,9 +36,9 @@ const int POSITION_CENTER = 3500;
 // SPEED
 // ============================================================
 
-const int BASE_SPEED = 120;
-const int MIN_SPEED = 55;
-const int MAX_SPEED = 200;
+const int BASE_SPEED = 150;
+const int MIN_SPEED = 75;
+const int MAX_SPEED = 220;
 
 const int MAX_CORRECTION = 65;
 
@@ -46,7 +46,7 @@ const int MAX_CORRECTION = 65;
 // PID
 // ============================================================
 
-float Kp = -3;
+float Kp = -10;
 float Ki = 0.0;
 float Kd = -0.015;
 
